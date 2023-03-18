@@ -11,6 +11,14 @@ RoutePlanner::RoutePlanner(RouteModel &model, float start_x, float start_y, floa
     // TODO 2: Use the m_Model.FindClosestNode method to find the closest nodes to the starting and ending coordinates.
     // Store the nodes you find in the RoutePlanner's start_node and end_node attributes.
 
+    // *start_node = m_Model.FindClosestNode(start_x, start_y);
+    // *end_node = m_Model.FindClosestNode(end_x, end_y);
+    start_node = &(m_Model.FindClosestNode(start_x, start_y));
+    end_node = &(m_Model.FindClosestNode(end_x, end_y));
+
+    std::cout << "Route" << "\n";
+    std::cout << "start: (" << start_node->x << ", " << start_node->y << ")" << "\n";
+    std::cout << "end: (" << end_node->x << ", " << end_node->y << ")" << "\n";
 }
 
 
@@ -20,7 +28,7 @@ RoutePlanner::RoutePlanner(RouteModel &model, float start_x, float start_y, floa
 // - Node objects have a distance method to determine the distance to another node.
 
 float RoutePlanner::CalculateHValue(RouteModel::Node const *node) {
-
+    return node->distance(*end_node);
 }
 
 
@@ -32,7 +40,14 @@ float RoutePlanner::CalculateHValue(RouteModel::Node const *node) {
 // - For each node in current_node.neighbors, add the neighbor to open_list and set the node's visited attribute to true.
 
 void RoutePlanner::AddNeighbors(RouteModel::Node *current_node) {
-
+    current_node->FindNeighbors();
+    for (auto n_node : current_node->neighbors) {
+        n_node->parent = current_node;
+        n_node->h_value = CalculateHValue(n_node);
+        n_node->g_value = current_node->g_value + current_node->distance(*n_node);
+        n_node->visited = true;
+        open_list.push_back(n_node);
+    }
 }
 
 
@@ -43,8 +58,23 @@ void RoutePlanner::AddNeighbors(RouteModel::Node *current_node) {
 // - Remove that node from the open_list.
 // - Return the pointer.
 
-RouteModel::Node *RoutePlanner::NextNode() {
+bool comp(RouteModel::Node* node1, RouteModel::Node* node2) {
+    auto f1 = node1->h_value + node1->g_value;
+    auto f2 = node2->h_value + node2->g_value;
 
+    return f1 > f2;
+}
+
+RouteModel::Node *RoutePlanner::NextNode() {
+    std::sort(open_list.begin(), open_list.end(), comp);
+    RouteModel::Node *next_node = open_list.back();
+    open_list.pop_back();
+    // if (open_list.size() > 4) {
+    //     open_list.erase(open_list.begin(), open_list.begin() + open_list.size() - 4);
+    // }
+    // open_list.clear();
+  
+    return next_node;
 }
 
 
@@ -62,8 +92,29 @@ std::vector<RouteModel::Node> RoutePlanner::ConstructFinalPath(RouteModel::Node 
     std::vector<RouteModel::Node> path_found;
 
     // TODO: Implement your solution here.
+    RouteModel::Node next_node = *current_node;
+    do {
+        path_found.push_back(next_node);
+        // path_found.push_back(*current_node);
+        
+        if (next_node.x == start_node->x && next_node.y == start_node->y) {
+            break;
+        } 
+        distance += next_node.distance(*(next_node.parent));
+        
+        /*
+        if (current_node->parent->x == start_node->x && current_node->parent->y == start_node->y) {
+            break;
+        } 
+        distance += current_node->distance(*(current_node->parent));
+        current_node = current_node->parent;
+        */
+        next_node = *(next_node.parent);
+    } while (true);
+    std::reverse(path_found.begin(), path_found.end());
 
     distance *= m_Model.MetricScale(); // Multiply the distance by the scale of the map to get meters.
+    std::reverse(path_found.begin(), path_found.end());
     return path_found;
 
 }
@@ -80,5 +131,17 @@ void RoutePlanner::AStarSearch() {
     RouteModel::Node *current_node = nullptr;
 
     // TODO: Implement your solution here.
+    start_node->visited = true;
+    open_list.push_back(start_node);
+
+    while (open_list.size() > 0) {
+        current_node = NextNode();
+        if (current_node->x == end_node->x && current_node->y == end_node->y) {
+            m_Model.path = ConstructFinalPath(current_node);
+            std::cout << "Finish: find goal" << "\n";
+            break;
+        }
+        AddNeighbors(current_node);
+    }
 
 }
